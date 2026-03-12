@@ -107,21 +107,47 @@ Clinical interpretation of statistical results and model outputs.
 ------------------------------------------------------------------------
 
 # Repository Structure
-
-heart-failure-logistic-regression/
-
-data/ raw/ processed/
-
-notebooks/ 01_data_understanding.ipynb 02_eda_and_preprocessing.ipynb
-03_statistical_inference.ipynb 04_logistic_regression_model.ipynb
-05_model_evaluation.ipynb
-
-src/ data.py preprocessing.py inference.py modeling.py evaluation.py
-plots.py
-
-reports/ figures/
-
-README.md requirements.txt
+```
+Clinical Risk Prediction for Heart Disease/
+│
+├── README.md
+├── requirements.txt
+├── .gitignore
+├── LICENSE
+│
+├── data/
+│   ├── raw/
+│   │   └── heart_failure_clinical_records_dataset.csv
+│   └── processed/
+│       ├── train.csv
+│       ├── test.csv
+│       └── data_dictionary.md
+│
+├── notebooks/
+│   ├── 01_data_understanding.ipynb
+│   ├── 02_eda_and_preprocessing.ipynb
+│   ├── 03_statistical_inference.ipynb
+│   ├── 04_logistic_regression_model.ipynb
+│   ├── 05_model_evaluation.ipynb
+│   └── 06_clinical_interpretation_and_conclusions.ipynb
+│
+├── src/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── data.py
+│   ├── preprocessing.py
+│   ├── inference.py
+│   ├── modeling.py
+│   ├── evaluation.py
+│   └── plots.py
+│
+├── reports/
+│   ├── figures/
+│   └── tables/
+│
+└── tests/
+    └── test_preprocessing.py
+```
 
 ------------------------------------------------------------------------
 
