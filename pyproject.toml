@@ -1,0 +1,17 @@
+[project]
+name = "clinical-risk-prediction-for-heart-disease"
+version = "0.1.0"
+description = ""
+authors = [
+    { name = "Mr.Rovira", email = "agustinrovirquezada@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["pandas (>=3.0.1,<4.0.0)", "jupyter (>=1.1.1,<2.0.0)", "ipykernel (>=7.2.0,<8.0.0)", "matplotlib (>=3.10.8,<4.0.0)", "seaborn (>=0.13.2,<0.14.0)", "ucimlrepo (>=0.0.7,<0.0.8)"]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
