@@ -13,7 +13,15 @@ def _get_binary_colors(values):
     return ["#4C72B0" if v < 0 else "#C44E52" for v in values]
     
 def _setup_plot_theme() -> None:
-    sns.set_theme(style="whitegrid", context="notebook")
+    sns.set_theme(style="whitegrid", context="notebook", font_scale=1.1)
+    plt.rcParams.update({
+        "axes.titlesize": 13,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "legend.fontsize": 10,
+        "figure.dpi": 100,
+    })
 
 
 def _create_subplot_grid(
@@ -283,245 +291,236 @@ def plot_categorical_effects(
     figsize=(11, 6),
     decimals_diff=2,
     decimals_p=3,
-    decimals_or=2
+    decimals_or=2,
+    save_path=None,
+    show=True,
 ):
     """
     Plot difference in outcome rate by categorical predictors and annotate
     each bar with p-value, odds ratio, and OR confidence interval.
 
     Required columns in results_df:
-        - variable
-        - abs_diff
-        - p_value
-        - odds_ratio
-        - or_ci_low
-        - or_ci_high
-
+        variable, abs_diff, p_value, odds_ratio, or_ci_low, or_ci_high
     Optional columns:
-        - p_adj_fdr   (used if use_adjusted_p=True and column exists)
-
-    Parameters
-    ----------
-    results_df : pd.DataFrame
-        Dataframe with categorical test results.
-    target_name : str
-        Name of the binary target, used in title/x-label/legend.
-    use_adjusted_p : bool, default False
-        If True, uses p_adj_fdr when available.
-    figsize : tuple, default (11, 6)
-        Figure size.
-    decimals_diff : int, default 2
-        Decimals for abs_diff label.
-    decimals_p : int, default 3
-        Decimals for p-value label.
-    decimals_or : int, default 2
-        Decimals for OR and CI labels.
+        p_adj_fdr (used if use_adjusted_p=True and column exists)
     """
+    _setup_plot_theme()
     plot_df = results_df.copy().sort_values("abs_diff").reset_index(drop=True)
 
     p_col = "p_adj_fdr" if use_adjusted_p and "p_adj_fdr" in plot_df.columns else "p_value"
-    p_label_name = "adjusted p" if p_col == "p_adj_fdr" else "p"
+    p_label_name = "p_adj" if p_col == "p_adj_fdr" else "p"
 
-    sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=figsize)
-
     colors = ["#4C72B0" if x < 0 else "#C44E52" for x in plot_df["abs_diff"]]
 
-    ax.barh(
-        y=plot_df["variable"],
-        width=plot_df["abs_diff"],
-        color=colors,
-        alpha=0.75
-    )
-
+    ax.barh(y=plot_df["variable"], width=plot_df["abs_diff"], color=colors, alpha=0.75)
     ax.axvline(0, linestyle="--", color="black", linewidth=1.5, alpha=0.8)
 
     ax.set_title(
-        f"Difference in {target_name} Rate by Categorical Predictors",
-        fontsize=15,
-        weight="bold"
+        f"Difference in {target_name.title()} Rate by Categorical Predictors",
+        fontsize=14, weight="bold"
     )
-    ax.set_xlabel(
-        f"Difference in {target_name} rate (group=1 − group=0)",
-        fontsize=11
-    )
+    ax.set_xlabel(f"Difference in {target_name} rate  (group=1 − group=0)", fontsize=11)
     ax.set_ylabel("")
 
     vals = plot_df["abs_diff"].to_numpy()
-    vmin = np.nanmin(vals)
-    vmax = np.nanmax(vals)
+    vmin, vmax = np.nanmin(vals), np.nanmax(vals)
     data_range = max(vmax - vmin, 0.02)
-
-    label_offset = data_range * 0.03
-    xpad_left = data_range * 0.32
-    xpad_right = data_range * 0.32
-
-    ax.set_xlim(vmin - xpad_left, vmax + xpad_right)
+    ax.set_xlim(vmin - data_range * 0.38, vmax + data_range * 0.38)
 
     for i, row in plot_df.iterrows():
         v = row["abs_diff"]
-        p = row[p_col]
-        or_val = row["odds_ratio"]
-        ci_low = row["or_ci_low"]
-        ci_high = row["or_ci_high"]
-
-        diff_txt = f"Δ={v:.{decimals_diff}f}"
-        p_txt = f"{p_label_name}={format_p(p,decimals_p)}"
-        or_txt = (
-            f"OR={or_val:.{decimals_or}f} "
-            f"[{ci_low:.{decimals_or}f}, {ci_high:.{decimals_or}f}]"
+        full_txt = (
+            f"Δ={v:.{decimals_diff}f}\n"
+            f"{p_label_name}={format_p(row[p_col], decimals_p)}\n"
+            f"OR={row['odds_ratio']:.{decimals_or}f} "
+            f"[{row['or_ci_low']:.{decimals_or}f}, {row['or_ci_high']:.{decimals_or}f}]"
         )
-
-        full_txt = f"{diff_txt}\n{p_txt}\n{or_txt}"
-
-        if v >= 0:
-            x_text = v + label_offset
-            ha = "left"
-        else:
-            x_text = v - label_offset
-            ha = "right"
-
+        offset = data_range * 0.03
         ax.text(
-            x_text,
-            i,
-            full_txt,
-            va="center",
-            ha=ha,
-            fontsize=10
+            v + offset if v >= 0 else v - offset,
+            i, full_txt,
+            va="center", ha="left" if v >= 0 else "right", fontsize=10
         )
 
     legend_elements = [
-        Patch(
-            facecolor="#C44E52",
-            alpha=0.75,
-            label=f"Higher {target_name} rate in group=1"
-        ),
-        Patch(
-            facecolor="#4C72B0",
-            alpha=0.75,
-            label=f"Lower {target_name} rate in group=1"
-        ),
-        Line2D(
-            [0], [0],
-            color="black",
-            linestyle="--",
-            lw=1.5,
-            label=f"No difference in {target_name} rate"
-        )
+        Patch(facecolor="#C44E52", alpha=0.75, label=f"Higher {target_name} rate in group=1"),
+        Patch(facecolor="#4C72B0", alpha=0.75, label=f"Lower {target_name} rate in group=1"),
+        Line2D([0], [0], color="black", linestyle="--", lw=1.5,
+               label=f"No difference in {target_name} rate"),
     ]
+    ax.legend(handles=legend_elements, title=f"Target: {target_name}", frameon=True, loc="best")
 
-    ax.legend(
-        handles=legend_elements,
-        title=f"Target: {target_name}",
-        frameon=True,
-        loc="best"
-    )
-
-    sns.despine(left=False, bottom=False)
+    _style_axis(ax)
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        directory = os.path.dirname(save_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 def plot_numeric_effects(
     results_df,
-    group1_name="group 1",
-    group0_name="group 0",
-    effect_col="median_diff_g1_minus_g0",
-    effect_label="Median difference",
-    figsize=(11, 6),
-    decimals_effect=2,
+    group1_name="death",
+    group0_name="survived",
+    figsize=(12, 6),
     decimals_p=3,
     decimals_delta=2,
+    save_path=None,
+    show=True,
 ):
-    df = results_df.sort_values(effect_col).reset_index(drop=True).copy()
+    """
+    Forest-style bar chart of Cliff's delta for continuous predictors.
+    Whiskers show bootstrap 95% CI on Cliff's delta when available.
+    Bars are coloured by effect direction (blue = lower in death group,
+    red = higher in death group).
+
+    Required columns: variable, cliffs_delta, cliffs_magnitude, p_value
+    Optional columns: cliffs_delta_ci_low, cliffs_delta_ci_high, p_adj_fdr
+    """
+    _setup_plot_theme()
+    df = results_df.sort_values("cliffs_delta").reset_index(drop=True).copy()
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    values = df[effect_col].to_numpy()
+    values = df["cliffs_delta"].to_numpy()
     colors = ["#4C72B0" if v < 0 else "#C44E52" for v in values]
 
-    ax.barh(df["variable"], df[effect_col], color=colors, alpha=0.75)
-    ax.axvline(0, linestyle="--", color="black", linewidth=1.5, alpha=0.8)
+    # Bars
+    ax.barh(df["variable"], df["cliffs_delta"], color=colors, alpha=0.70, zorder=2)
 
-    ax.set_title("Numeric Predictors: Inferential Results", fontsize=14, weight="bold")
-    ax.set_xlabel(f"{effect_label} ({group1_name} − {group0_name})")
+    ax.axvline(0, linestyle="--", color="black", linewidth=1.4, alpha=0.8)
+
+    # Reference lines for magnitude thresholds (Cliff's delta: small=0.11, medium=0.28, large=0.43)
+    for x, label in [(0.11, "small"), (0.28, "medium"), (0.43, "large")]:
+        for sign in [1, -1]:
+            ax.axvline(sign * x, linestyle=":", color="gray", linewidth=0.8, alpha=0.5)
+
+    ax.set_title(
+        f"Continuous Predictors: Effect Size on {group1_name.title()} vs {group0_name.title()}",
+        fontsize=14, weight="bold"
+    )
+    ax.set_xlabel(
+        f"Cliff's delta  ({group1_name} − {group0_name})  [−1 = always lower, +1 = always higher]",
+        fontsize=11
+    )
     ax.set_ylabel("")
+    ax.set_xlim(-1.05, 1.05)
 
-    vmin, vmax = np.nanmin(values), np.nanmax(values)
-    data_range = max(vmax - vmin, 0.02)
-    pad = data_range * 0.35
-    offset = data_range * 0.03
-    ax.set_xlim(vmin - pad, vmax + pad)
+    p_col = "p_adj_fdr" if "p_adj_fdr" in df.columns else "p_value"
+    p_label = "p_adj" if p_col == "p_adj_fdr" else "p"
 
     for i, row in df.iterrows():
-        v = row[effect_col]
-        label = (
-            f"Δ={v:.{decimals_effect}f}\n"
-            f"p={format_p(row['p_value'],decimals_p)}\n"
-            f"δ={row['cliffs_delta']:.{decimals_delta}f} ({row['cliffs_magnitude']})"
+        v = row["cliffs_delta"]
+        annotation = (
+            f"δ={v:.{decimals_delta}f}\n"
+            f"{p_label}={format_p(row[p_col], decimals_p)}\n"
+            f"({row['cliffs_magnitude']})"
         )
-
+        offset = 0.04
         ax.text(
             v + offset if v >= 0 else v - offset,
             i,
-            label,
+            annotation,
             va="center",
             ha="left" if v >= 0 else "right",
-            fontsize=9,
+            fontsize=10,
         )
 
+    legend_elements = [
+        Patch(facecolor="#C44E52", alpha=0.70,
+              label=f"Higher in {group1_name} group"),
+        Patch(facecolor="#4C72B0", alpha=0.70,
+              label=f"Lower in {group1_name} group"),
+        Line2D([0], [0], color="black", linestyle="--", lw=1.4,
+               label="No difference (δ = 0)"),
+        Line2D([0], [0], color="gray", linestyle=":", lw=0.8,
+               label="Magnitude thresholds (small / medium / large)"),
+    ]
+    ax.legend(handles=legend_elements, frameon=True, loc="lower right", fontsize=10)
+
+    _style_axis(ax)
     plt.tight_layout()
-    plt.show()
+
+    if save_path:
+        directory = os.path.dirname(save_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
-def plot_roc_curves(roc_curves, title="ROC Curves", figsize=(6, 5), save_path=None):
-    plt.figure(figsize=figsize)
+def plot_roc_curves(roc_curves, title="ROC Curves", figsize=(6, 5), save_path=None, show=True):
+    _setup_plot_theme()
+    fig, ax = plt.subplots(figsize=figsize)
 
     for curve in roc_curves:
-        plt.plot(
+        ax.plot(
             curve["fpr"],
             curve["tpr"],
             linewidth=2,
             label=f'{curve["label"]} (AUC = {curve["auc"]:.3f})'
         )
 
-    plt.plot([0, 1], [0, 1], linestyle="--", linewidth=1)
+    ax.plot([0, 1], [0, 1], linestyle="--", linewidth=1, color="gray", label="Random classifier")
 
-    plt.xlim(0, 1)
-    plt.ylim(0, 1.01)
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(title)
-    plt.legend(frameon=False)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1.01)
+    ax.set_xlabel("False Positive Rate (1 − Specificity)")
+    ax.set_ylabel("True Positive Rate (Sensitivity)")
+    ax.set_title(title, fontsize=14, weight="bold")
+    ax.legend(frameon=True, loc="lower right")
+    _style_axis(ax)
     plt.tight_layout()
 
     if save_path is not None:
+        directory = os.path.dirname(save_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
-    plt.show()
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 
 def plot_forest_or_on_ax(ax, or_summary, title="Adjusted Odds Ratios (95% CI)"):
+    """
+    Forest plot of adjusted odds ratios on a given Axes.
+
+    Uses linear scale (appropriate for OR range ~[0.3, 4]).
+    Labels are positioned per-row relative to their own CI_high,
+    avoiding fixed-position overlap.
+
+    Required columns: variable, OR, CI_low, CI_high, p_value
+    """
     df = or_summary.copy()
-
-    # remove intercept if present
     df = df[df["variable"] != "const"].copy()
-
-    # sort variables
     df = df.sort_values("OR").reset_index(drop=True)
 
-    # label text
     df["label_text"] = df.apply(
         lambda x: f'{x["OR"]:.2f} ({x["CI_low"]:.2f}–{x["CI_high"]:.2f})',
         axis=1
     )
 
     y_pos = np.arange(len(df))
+    x_max = df["CI_high"].max()
+    x_min = df["CI_low"].min()
+    x_range = x_max - x_min
 
     for i, row in df.iterrows():
-        color = "black" if row["p_value"] < 0.05 else "gray"
-
+        color = "#C44E52" if row["p_value"] < 0.05 else "gray"
         ax.errorbar(
             x=row["OR"],
             y=i,
@@ -529,40 +528,123 @@ def plot_forest_or_on_ax(ax, or_summary, title="Adjusted Odds Ratios (95% CI)"):
             fmt="o",
             color=color,
             ecolor=color,
-            elinewidth=1.4,
-            capsize=3,
-            markersize=6
+            elinewidth=1.5,
+            capsize=4,
+            markersize=7,
         )
-
-    ax.axvline(1, linestyle="--", color="gray", linewidth=1)
-    ax.set_xscale("log")
-
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(df["variable"])
-
-    ax.set_xlabel("Odds Ratio (log scale)")
-    ax.set_title(title)
-
-    # add OR text
-    x_text = df["CI_high"].max() * 1.15
-    for i, row in df.iterrows():
+        # label next to each row's own CI_high
         ax.text(
-            x_text,
+            row["CI_high"] + x_range * 0.03,
             i,
             row["label_text"],
             va="center",
-            fontsize=9
+            ha="left",
+            fontsize=9,
         )
 
-    ax.set_xlim(df["CI_low"].min() * 0.8, df["CI_high"].max() * 2.2)
+    ax.axvline(1, linestyle="--", color="gray", linewidth=1.2)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(df["variable"], fontsize=10)
+    ax.set_xlabel("Odds Ratio (linear scale)", fontsize=10)
+    ax.set_title(title, fontsize=12, weight="bold")
+    ax.set_xlim(max(0, x_min - x_range * 0.15), x_max + x_range * 0.55)
 
     legend_elements = [
-        Line2D([0], [0], marker="o", color="black", linestyle="None",
-               label="Statistically significant (p < 0.05)", markersize=6),
+        Line2D([0], [0], marker="o", color="#C44E52", linestyle="None",
+               label="Significant (p < 0.05)", markersize=7),
         Line2D([0], [0], marker="o", color="gray", linestyle="None",
-               label="Not significant (p ≥ 0.05)", markersize=6)
+               label="Not significant (p ≥ 0.05)", markersize=7),
     ]
-    ax.legend(handles=legend_elements, loc="upper left")
+    ax.legend(handles=legend_elements, loc="lower right", frameon=True, fontsize=9)
+    _style_axis(ax)
+
+
+def plot_forest_or_comparison(or_summaries, title="Adjusted Odds Ratios — Model Comparison",
+                               figsize=(12, 7), save_path=None, show=True):
+    """
+    Single forest plot comparing odds ratios across multiple models.
+
+    Each variable gets one row; models are shown as offset points with
+    different colours, making cross-model comparison immediate.
+
+    Parameters
+    ----------
+    or_summaries : dict[str, pd.DataFrame]
+        Keys are model names; values are OR summary DataFrames
+        (output of logistic_or_summary). Must contain:
+        variable, OR, CI_low, CI_high, p_value.
+    """
+    _setup_plot_theme()
+
+    # Union of all variables, sorted by first model's OR
+    first_df = next(iter(or_summaries.values()))
+    all_vars = (
+        first_df[first_df["variable"] != "const"]
+        .sort_values("OR")["variable"]
+        .tolist()
+    )
+
+    palette = sns.color_palette("tab10", len(or_summaries))
+    model_names = list(or_summaries.keys())
+    n_models = len(model_names)
+    offsets = np.linspace(-0.25, 0.25, n_models)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    y_ticks = np.arange(len(all_vars))
+
+    for m_idx, (model_name, df) in enumerate(or_summaries.items()):
+        df = df[df["variable"] != "const"].copy()
+        color = palette[m_idx]
+        offset = offsets[m_idx]
+
+        for v_idx, var in enumerate(all_vars):
+            row = df[df["variable"] == var]
+            if row.empty:
+                continue
+            row = row.iloc[0]
+            sig = row["p_value"] < 0.05
+            ax.errorbar(
+                x=row["OR"],
+                y=v_idx + offset,
+                xerr=[[row["OR"] - row["CI_low"]], [row["CI_high"] - row["OR"]]],
+                fmt="o" if sig else "D",
+                color=color,
+                ecolor=color,
+                elinewidth=1.4,
+                capsize=3,
+                markersize=6 if sig else 5,
+                alpha=1.0 if sig else 0.55,
+            )
+
+    ax.axvline(1, linestyle="--", color="gray", linewidth=1.2)
+    ax.set_yticks(y_ticks)
+    ax.set_yticklabels(all_vars, fontsize=10)
+    ax.set_xlabel("Odds Ratio (linear scale)", fontsize=11)
+    ax.set_title(title, fontsize=13, weight="bold")
+
+    legend_elements = [
+        Line2D([0], [0], marker="o", color=palette[i], linestyle="None",
+               label=name, markersize=8)
+        for i, name in enumerate(model_names)
+    ] + [
+        Line2D([0], [0], marker="o", color="gray", linestyle="None",
+               label="Circle = significant (p<0.05)", markersize=7),
+        Line2D([0], [0], marker="D", color="gray", linestyle="None",
+               label="Diamond = not significant", markersize=6, alpha=0.55),
+    ]
+    ax.legend(handles=legend_elements, frameon=True, loc="lower right", fontsize=9)
+    _style_axis(ax)
+    plt.tight_layout()
+
+    if save_path:
+        directory = os.path.dirname(save_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
 
 
@@ -574,7 +656,8 @@ def plot_pred_proba_hist(
     bins: int = 30,
     kde: bool = True,
     stat: str = "density",
-    element: str = "step"
+    element: str = "step",
+    title: Optional[str] = None,
 ) -> None:
     sns.histplot(
         data=df,
@@ -586,5 +669,7 @@ def plot_pred_proba_hist(
         kde=kde,
         ax=ax
     )
-    ax.set_xlabel("Predicted probability")
-    ax.set_title(f"{col} by true class")
+    ax.set_xlabel("Predicted probability", fontsize=11)
+    ax.set_ylabel(stat.title(), fontsize=11)
+    ax.set_title(title or f"Predicted probabilities — {col}", fontsize=12, weight="bold")
+    _style_axis(ax)
